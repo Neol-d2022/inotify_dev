@@ -65,6 +65,12 @@ static void handle_events(int fd, int *wd, int argc, char *argv[])
                 printf("IN_CLOSE_NOWRITE: ");
             if (event->mask & IN_CLOSE_WRITE)
                 printf("IN_CLOSE_WRITE: ");
+            if (event->mask & IN_MOVED_FROM)
+                printf("IN_MOVED_FROM: ");
+            if (event->mask & IN_MOVED_TO)
+                printf("IN_MOVED_TO: ");
+            if (event->mask & IN_DELETE)
+                printf("IN_DELETE: ");
 
             /* Print the name of the watched directory */
 
@@ -132,7 +138,7 @@ int main(int argc, char *argv[])
 
     for (i = 1; i < argc; i++)
     {
-        wd[i] = inotify_add_watch(fd, argv[i], IN_OPEN | IN_CLOSE);
+        wd[i] = inotify_add_watch(fd, argv[i], IN_OPEN | IN_CLOSE | IN_MOVE | IN_DELETE);
         if (wd[i] == -1)
         {
             fprintf(stderr, "Cannot watch '%s'\n", argv[i]);
