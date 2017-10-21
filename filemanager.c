@@ -59,6 +59,8 @@ int FMCreateDatabase(RecoveryDatabase_t *rd)
     rd->dirs = Mmalloc(sizeof(*(rd->dirs)));
     rd->fdb = fdb;
     memcpy(rd->dirs, &dirs, sizeof(*(rd->dirs)));
+
+    return 0;
 }
 
 int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
@@ -85,7 +87,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
             if (crc32 != (*r)->crc32)
             {
                 printf("[DEBUG] FMCheckFile, '%s' CRC32 does not match.\n", path);
-                FMRecoverFile(rd, path);
+                FMRecoverFile(path);
             }
             else
             {
@@ -98,7 +100,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
             if (errno == ENOENT)
             {
                 printf("[DEBUG] FMCheckFile, '%s', has been removed.\n", path);
-                FMRecoverFile(rd, path);
+                FMRecoverFile(path);
             }
         }
     }
@@ -108,9 +110,11 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
         printf("[DEBUG] FMCheckFile, '%s', is recently created.\n", path);
         FMRemoveFile(path);
     }
+
+    return 0;
 }
 
-int FMRecoverFile(RecoveryDatabase_t *rd, const char *path)
+int FMRecoverFile(const char *path)
 {
     static const char *recoverySource = "recovery/";
     char *tmp, *tmp2;
@@ -127,12 +131,15 @@ int FMRecoverFile(RecoveryDatabase_t *rd, const char *path)
     Mfree(tmp);
 
     Mfree(rpath);
+
+    return 0;
 }
 
 int FMRemoveFile(const char *path)
 {
     remove(path);
     printf("[DEBUG] FMRemoveFile, '%s' has been removed.\n", path);
+    return 1;
 }
 
 // --------

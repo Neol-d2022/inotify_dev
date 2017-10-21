@@ -11,7 +11,7 @@ typedef struct
 
 int FMCreateDatabase(RecoveryDatabase_t *rd);
 int FMCheckFile(RecoveryDatabase_t *rd, const char *path);
-int FMRecoverFile(RecoveryDatabase_t *rd, const char *path);
+int FMRecoverFile(const char *path);
 int FMRemoveFile(const char *path);
 
 #endif

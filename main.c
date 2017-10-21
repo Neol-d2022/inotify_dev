@@ -77,59 +77,59 @@ static void handle_events(int fd, int *wd)
 
             if (event->mask & IN_OPEN)
             {
-                printf("IN_OPEN: ");
+                //printf("IN_OPEN: ");
             }
             if (event->mask & IN_CLOSE_NOWRITE)
             {
-                printf("IN_CLOSE_NOWRITE: ");
+                //printf("IN_CLOSE_NOWRITE: ");
             }
             if (event->mask & IN_CLOSE_WRITE)
             {
-                printf("IN_CLOSE_WRITE: ");
+                //printf("IN_CLOSE_WRITE: ");
                 FMCheckFile(&rd, path);
             }
             if (event->mask & IN_MOVED_FROM)
             {
-                printf("IN_MOVED_FROM: ");
+                //printf("IN_MOVED_FROM: ");
                 FMCheckFile(&rd, path);
             }
             if (event->mask & IN_MOVED_TO)
             {
-                printf("IN_MOVED_TO: ");
+                //printf("IN_MOVED_TO: ");
                 FMCheckFile(&rd, path);
             }
             if (event->mask & IN_DELETE)
             {
-                printf("IN_DELETE: ");
+                //printf("IN_DELETE: ");
                 FMCheckFile(&rd, path);
             }
             if (event->mask & IN_CREATE)
             {
-                printf("IN_CREATE: ");
+                //printf("IN_CREATE: ");
                 FMCheckFile(&rd, path);
             }
             if (event->mask & IN_DELETE_SELF)
             {
-                printf("IN_DELETE_SELF: ");
+                //printf("IN_DELETE_SELF: ");
                 FMCheckFile(&rd, path);
             }
             Mfree(path);
 
             /* Print the name of the watched directory */
 
-            printf("%s/", (char *)rd.dirs->storage[i]);
+            //printf("%s/", (char *)rd.dirs->storage[i]);
 
             /* Print the name of the file */
 
-            if (event->len)
-                printf("%s", event->name);
+            //if (event->len)
+            //    printf("%s", event->name);
 
             /* Print type of filesystem object */
 
-            if (event->mask & IN_ISDIR)
-                printf(" [directory]\n");
-            else
-                printf(" [file]\n");
+            //if (event->mask & IN_ISDIR)
+            //    printf(" [directory]\n");
+            //else
+            //    printf(" [file]\n");
         }
     }
 }
