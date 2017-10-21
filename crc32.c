@@ -34,7 +34,7 @@ int Crc32_ComputeFile(FILE *file, uint32_t *outCrc32)
     while (1)
     {
         bufLen = fread(buf, 1, CRC_BUFFER_SIZE, file);
-        if (bufLen != CRC_BUFFER_SIZE)
+        if (bufLen == 0)
         {
             if (ferror(file))
             {

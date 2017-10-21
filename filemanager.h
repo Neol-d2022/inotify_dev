@@ -5,7 +5,6 @@
 
 typedef struct
 {
-    char *recoverySource;
     Vector_t *fdb;
     Vector_t *dirs;
 } RecoveryDatabase_t;

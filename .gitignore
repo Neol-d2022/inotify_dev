@@ -56,3 +56,7 @@ inotify_dev
 
 # VS Code Configuration
 .vscode/
+
+# Test Environment
+protected/
+recovery/

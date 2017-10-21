@@ -10,6 +10,8 @@
 #include <string.h>
 
 #include "filemanager.h"
+#include "strings.h"
+#include "mm.h"
 
 static RecoveryDatabase_t rd;
 
@@ -32,6 +34,7 @@ static void handle_events(int fd, int *wd)
     size_t i;
     ssize_t len;
     char *ptr;
+    char *path, *tmp;
 
     /* Loop while events can be read from inotify file descriptor. */
 
@@ -64,6 +67,14 @@ static void handle_events(int fd, int *wd)
 
             /* Print event type */
 
+            for (i = 0; i < rd.dirs->count; ++i)
+                if (wd[i] == event->wd)
+                    break;
+
+            tmp = SCat((char *)rd.dirs->storage[i], "/");
+            path = SCat(tmp, event->name);
+            Mfree(tmp);
+
             if (event->mask & IN_OPEN)
             {
                 printf("IN_OPEN: ");
@@ -75,39 +86,38 @@ static void handle_events(int fd, int *wd)
             if (event->mask & IN_CLOSE_WRITE)
             {
                 printf("IN_CLOSE_WRITE: ");
-                FMCheckFile(&rd, event->name);
+                FMCheckFile(&rd, path);
             }
             if (event->mask & IN_MOVED_FROM)
             {
                 printf("IN_MOVED_FROM: ");
-                FMCheckFile(&rd, event->name);
+                FMCheckFile(&rd, path);
             }
             if (event->mask & IN_MOVED_TO)
             {
                 printf("IN_MOVED_TO: ");
-                FMCheckFile(&rd, event->name);
+                FMCheckFile(&rd, path);
             }
             if (event->mask & IN_DELETE)
             {
                 printf("IN_DELETE: ");
-                FMCheckFile(&rd, event->name);
+                FMCheckFile(&rd, path);
             }
             if (event->mask & IN_CREATE)
             {
                 printf("IN_CREATE: ");
-                FMCheckFile(&rd, event->name);
+                FMCheckFile(&rd, path);
             }
+            if (event->mask & IN_DELETE_SELF)
+            {
+                printf("IN_DELETE_SELF: ");
+                FMCheckFile(&rd, path);
+            }
+            Mfree(path);
 
             /* Print the name of the watched directory */
 
-            for (i = 0; i < rd.dirs->count; ++i)
-            {
-                if (wd[i] == event->wd)
-                {
-                    printf("%s/", (char *)rd.dirs->storage[i]);
-                    break;
-                }
-            }
+            printf("%s/", (char *)rd.dirs->storage[i]);
 
             /* Print the name of the file */
 
@@ -171,7 +181,7 @@ int main(int argc, char *argv[])
     {
         char *test = (char *)(rd.dirs->storage[i]);
         printf("%s\n", test);
-        wd[i] = inotify_add_watch(fd, (char *)(rd.dirs->storage[i]), IN_OPEN | IN_CLOSE | IN_MOVE | IN_DELETE | IN_CREATE);
+        wd[i] = inotify_add_watch(fd, (char *)(rd.dirs->storage[i]), IN_OPEN | IN_CLOSE | IN_MOVE | IN_DELETE | IN_CREATE | IN_DELETE_SELF);
         if (wd[i] == -1)
         {
             fprintf(stderr, "Cannot watch '%s'\n", (char *)(rd.dirs->storage[i]));
