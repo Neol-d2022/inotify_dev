@@ -21,7 +21,7 @@ static RecoveryDatabase_t rd;
    argv is the list of watched directories.
    Entry 0 of wd and argv is unused. */
 
-static void handle_events(int fd, int *wd)
+static void handle_events(int fd, int **wd)
 {
     /* Some systems cannot read integer variables if they are not
        properly aligned. On other systems, incorrect alignment may
@@ -68,8 +68,14 @@ static void handle_events(int fd, int *wd)
             /* Print event type */
 
             for (i = 0; i < rd.dirs->count; ++i)
-                if (wd[i] == event->wd)
+                if ((*wd)[i] == event->wd)
                     break;
+
+            if (i >= rd.dirs->count)
+            {
+                inotify_rm_watch(fd, event->wd);
+                continue;
+            }
 
             path = SCatM(3, (char *)rd.dirs->storage[i], "/", event->name);
 
@@ -161,6 +167,8 @@ int main(int argc, char *argv[])
 
     memset(&rd, 0, sizeof(rd));
     FMCreateDatabase(&rd);
+    rd.wd = &wd;
+    rd.fd = fd;
 
     /* Allocate memory for watch descriptors */
 
@@ -177,8 +185,6 @@ int main(int argc, char *argv[])
 
     for (size_t i = 0; i < rd.dirs->count; i++)
     {
-        char *test = (char *)(rd.dirs->storage[i]);
-        printf("%s\n", test);
         wd[i] = inotify_add_watch(fd, (char *)(rd.dirs->storage[i]), IN_OPEN | IN_CLOSE | IN_MOVE | IN_DELETE | IN_CREATE | IN_DELETE_SELF);
         if (wd[i] == -1)
         {
@@ -234,7 +240,7 @@ int main(int argc, char *argv[])
 
                 /* Inotify events are available */
 
-                handle_events(fd, wd);
+                handle_events(fd, &wd);
             }
         }
     }

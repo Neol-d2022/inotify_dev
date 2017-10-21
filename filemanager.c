@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/inotify.h>
 
 #include "filemanager.h"
 #include "filetree.h"
@@ -145,6 +146,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
                 syscmd = SCatM(8, "mkdir ", path, " && cp -R ", recoverySource, path, " ", path, "/../");
                 system(syscmd);
                 Mfree(syscmd);
+                FMRefreshListener(rd);
             }
             else if (isDirectory(path))
             {
@@ -157,6 +159,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
                     syscmd = SCatM(8, "mkdir ", path, " && cp -R ", recoverySource, path, " ", path, "/../");
                     system(syscmd);
                     Mfree(syscmd);
+                    FMRefreshListener(rd);
                 }
                 else
                 {
@@ -196,6 +199,24 @@ int FMRemoveFile(const char *path)
     remove(path);
     printf("[DEBUG] FMRemoveFile, '%s' has been removed.\n", path);
     return 1;
+}
+
+int FMRefreshListener(RecoveryDatabase_t *rd)
+{
+    int r = 0;
+
+    for (size_t i = 0; i < rd->dirs->count; i++)
+    {
+        (*(rd->wd))[i] = inotify_add_watch(rd->fd, (char *)(rd->dirs->storage[i]), IN_OPEN | IN_CLOSE | IN_MOVE | IN_DELETE | IN_CREATE | IN_DELETE_SELF);
+        if ((*(rd->wd))[i] == -1)
+        {
+            fprintf(stderr, "Cannot watch '%s'\n", (char *)(rd->dirs->storage[i]));
+            perror("inotify_add_watch");
+            r = 1;
+        }
+    }
+
+    return r;
 }
 
 // --------
