@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <sys/inotify.h>
 #include <unistd.h>
+#include <string.h>
+
+#include "filemanager.h"
+
+static RecoveryDatabase_t rd;
 
 /* Read all available inotify events from the file descriptor 'fd'.
    wd is the table of watch descriptors for the directories in argv.
@@ -14,7 +19,7 @@
    argv is the list of watched directories.
    Entry 0 of wd and argv is unused. */
 
-static void handle_events(int fd, int *wd, int argc, char *argv[])
+static void handle_events(int fd, int *wd)
 {
     /* Some systems cannot read integer variables if they are not
        properly aligned. On other systems, incorrect alignment may
@@ -24,7 +29,7 @@ static void handle_events(int fd, int *wd, int argc, char *argv[])
 
     char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
     const struct inotify_event *event;
-    int i;
+    size_t i;
     ssize_t len;
     char *ptr;
 
@@ -60,27 +65,46 @@ static void handle_events(int fd, int *wd, int argc, char *argv[])
             /* Print event type */
 
             if (event->mask & IN_OPEN)
+            {
                 printf("IN_OPEN: ");
+            }
             if (event->mask & IN_CLOSE_NOWRITE)
+            {
                 printf("IN_CLOSE_NOWRITE: ");
+            }
             if (event->mask & IN_CLOSE_WRITE)
+            {
                 printf("IN_CLOSE_WRITE: ");
+                FMCheckFile(&rd, event->name);
+            }
             if (event->mask & IN_MOVED_FROM)
+            {
                 printf("IN_MOVED_FROM: ");
+                FMCheckFile(&rd, event->name);
+            }
             if (event->mask & IN_MOVED_TO)
+            {
                 printf("IN_MOVED_TO: ");
+                FMCheckFile(&rd, event->name);
+            }
             if (event->mask & IN_DELETE)
+            {
                 printf("IN_DELETE: ");
+                FMCheckFile(&rd, event->name);
+            }
             if (event->mask & IN_CREATE)
+            {
                 printf("IN_CREATE: ");
+                FMCheckFile(&rd, event->name);
+            }
 
             /* Print the name of the watched directory */
 
-            for (i = 1; i < argc; ++i)
+            for (i = 0; i < rd.dirs->count; ++i)
             {
                 if (wd[i] == event->wd)
                 {
-                    printf("%s/", argv[i]);
+                    printf("%s/", (char *)rd.dirs->storage[i]);
                     break;
                 }
             }
@@ -103,14 +127,14 @@ static void handle_events(int fd, int *wd, int argc, char *argv[])
 int main(int argc, char *argv[])
 {
     char buf;
-    int fd, i, poll_num;
+    int fd, poll_num;
     int *wd;
     nfds_t nfds;
     struct pollfd fds[2];
 
-    if (argc < 2)
+    if (argc != 1)
     {
-        printf("Usage: %s PATH [PATH ...]\n", argv[0]);
+        printf("Usage: %s\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -125,9 +149,14 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    /**/
+
+    memset(&rd, 0, sizeof(rd));
+    FMCreateDatabase(&rd);
+
     /* Allocate memory for watch descriptors */
 
-    wd = calloc(argc, sizeof(int));
+    wd = calloc(rd.dirs->count, sizeof(int));
     if (wd == NULL)
     {
         perror("calloc");
@@ -138,12 +167,14 @@ int main(int argc, char *argv[])
        - file was opened
        - file was closed */
 
-    for (i = 1; i < argc; i++)
+    for (size_t i = 0; i < rd.dirs->count; i++)
     {
-        wd[i] = inotify_add_watch(fd, argv[i], IN_OPEN | IN_CLOSE | IN_MOVE | IN_DELETE | IN_CREATE);
+        char *test = (char *)(rd.dirs->storage[i]);
+        printf("%s\n", test);
+        wd[i] = inotify_add_watch(fd, (char *)(rd.dirs->storage[i]), IN_OPEN | IN_CLOSE | IN_MOVE | IN_DELETE | IN_CREATE);
         if (wd[i] == -1)
         {
-            fprintf(stderr, "Cannot watch '%s'\n", argv[i]);
+            fprintf(stderr, "Cannot watch '%s'\n", (char *)(rd.dirs->storage[i]));
             perror("inotify_add_watch");
             exit(EXIT_FAILURE);
         }
@@ -195,7 +226,7 @@ int main(int argc, char *argv[])
 
                 /* Inotify events are available */
 
-                handle_events(fd, wd, argc, argv);
+                handle_events(fd, wd);
             }
         }
     }
