@@ -16,17 +16,22 @@ typedef struct
     uint32_t crc32;
 } FileNode_t;
 
+static const char *recoverySource = "recovery/";
 static int _FMcmpFNbyPath(const void *a, const void *b);
+static int _FMcmpDirbyPath(const void *a, const void *b);
 int FMCreateDatabase(RecoveryDatabase_t *rd)
 {
     const char *_buildPath = "./protected";
-    char *rpath;
+    char *rpath, *syscmd;
     FileNode_t *fn;
     Vector_t *fdb;
     FILE *f;
     Vector_t file, dirs;
     size_t i;
 
+    syscmd = SCatM(10, "rm -rf ", _buildPath, " && mkdir ", _buildPath, " && cp -R ", recoverySource, _buildPath, " ", _buildPath, "/../");
+    system(syscmd);
+    Mfree(syscmd);
     VInit(&file);
     VInit(&dirs);
     build(_buildPath, &file, &dirs);
@@ -56,6 +61,7 @@ int FMCreateDatabase(RecoveryDatabase_t *rd)
     VDeInit(&file);
     qsort(fdb->storage, fdb->count, sizeof(*(fdb->storage)), _FMcmpFNbyPath);
     VAdd(&dirs, SDup(_buildPath));
+    qsort(dirs.storage, dirs.count, sizeof(*(dirs.storage)), _FMcmpDirbyPath);
     rd->dirs = Mmalloc(sizeof(*(rd->dirs)));
     rd->fdb = fdb;
     memcpy(rd->dirs, &dirs, sizeof(*(rd->dirs)));
@@ -68,6 +74,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
     FileNode_t _fn;
     FileNode_t *fn, **r;
     FILE *f;
+    char **rp, *syscmd;
     uint32_t crc32;
 
     printf("[DEBUG] FMCheckFile, '%s'.\n", path);
@@ -78,26 +85,46 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
     if (r)
     {
         printf("[DEBUG] FMCheckFile, '%s', original CRC32 = 0x%08x.\n", path, (unsigned int)((*r)->crc32));
-        f = fopen(path, "rb");
-        if (f)
+
+        errno = 0;
+        if (is_regular_file(path))
         {
-            Crc32_ComputeFile(f, &crc32);
-            fclose(f);
-            printf("[DEBUG] FMCheckFile, '%s', new CRC32 = 0x%08x.\n", path, (unsigned int)(crc32));
-            if (crc32 != (*r)->crc32)
+            f = fopen(path, "rb");
+            if (f)
             {
-                printf("[DEBUG] FMCheckFile, '%s' CRC32 does not match.\n", path);
-                FMRecoverFile(path);
+                Crc32_ComputeFile(f, &crc32);
+                fclose(f);
+                printf("[DEBUG] FMCheckFile, '%s', new      CRC32 = 0x%08x.\n", path, (unsigned int)(crc32));
+                if (crc32 != (*r)->crc32)
+                {
+                    printf("[DEBUG] FMCheckFile, '%s' CRC32 does not match.\n", path);
+                    FMRecoverFile(path);
+                }
+                else
+                {
+                    printf("[DEBUG] FMCheckFile, '%s' CRC32 remains matched.\n", path);
+                }
             }
             else
             {
-                printf("[DEBUG] FMCheckFile, '%s' CRC32 remains matched.\n", path);
+                printf("[DEBUG] FMCheckFile, '%s', should not be here.\n", path);
             }
+        }
+        else if (isDirectory(path))
+        {
+            printf("[DEBUG] FMCheckFile, '%s', should not be a directory.\n", path);
+            syscmd = SCatM(2, "rm -rf ", path);
+            system(syscmd);
+            Mfree(syscmd);
+            FMRecoverFile(path);
         }
         else
         {
-            printf("[DEBUG] FMCheckFile, '%s', cannot compute new CRC: %s.\n", path, strerror(errno));
-            if (errno == ENOENT)
+            if (errno != ENOENT)
+            {
+                printf("[DEBUG] FMCheckFile, '%s', unknown file type.\n", path);
+            }
+            else
             {
                 printf("[DEBUG] FMCheckFile, '%s', has been removed.\n", path);
                 FMRecoverFile(path);
@@ -106,9 +133,43 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
     }
     else
     {
-        printf("[DEBUG] FMCheckFile, '%s', not found in DB.\n", path);
-        printf("[DEBUG] FMCheckFile, '%s', is recently created.\n", path);
-        FMRemoveFile(path);
+        rp = bsearch(&path, rd->dirs->storage, rd->dirs->count, sizeof(*(rd->dirs->storage)), _FMcmpDirbyPath);
+        if (rp)
+        {
+            //printf("[DEBUG] FMCheckFile, '%s', checks for directory is not implemented.\n", path);
+            errno = 0;
+            if (is_regular_file(path))
+            {
+                printf("[DEBUG] FMCheckFile, '%s', should not be a regular file.\n", path);
+                FMRemoveFile(path);
+                syscmd = SCatM(8, "mkdir ", path, " && cp -R ", recoverySource, path, " ", path, "/../");
+                system(syscmd);
+                Mfree(syscmd);
+            }
+            else if (isDirectory(path))
+            {
+            }
+            else
+            {
+                if (errno == ENOENT)
+                {
+                    printf("[DEBUG] FMCheckFile, '%s', directory deleted.\n", path);
+                    syscmd = SCatM(8, "mkdir ", path, " && cp -R ", recoverySource, path, " ", path, "/../");
+                    system(syscmd);
+                    Mfree(syscmd);
+                }
+                else
+                {
+                    printf("[DEBUG] FMCheckFile, '%s', unknown file type.\n", path);
+                }
+            }
+        }
+        else
+        {
+            printf("[DEBUG] FMCheckFile, '%s', not found in DB.\n", path);
+            printf("[DEBUG] FMCheckFile, '%s', is recently created.\n", path);
+            FMRemoveFile(path);
+        }
     }
 
     return 0;
@@ -116,19 +177,14 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
 
 int FMRecoverFile(const char *path)
 {
-    static const char *recoverySource = "recovery/";
-    char *tmp, *tmp2;
+    char *syscmd;
 
     char *rpath = SCat(recoverySource, path);
     printf("[DEBUG] FMRecoverFile, '%s' is corrupted, the original '%s' has been requested.\n", path, rpath);
 
-    tmp = SCat("cp ", rpath);
-    tmp2 = SCat(tmp, " ");
-    Mfree(tmp);
-    tmp = SCat(tmp2, path);
-    Mfree(tmp2);
-    system(tmp);
-    Mfree(tmp);
+    syscmd = SCatM(4, "cp ", rpath, " ", path);
+    system(syscmd);
+    Mfree(syscmd);
 
     Mfree(rpath);
 
@@ -150,4 +206,12 @@ static int _FMcmpFNbyPath(const void *a, const void *b)
     FileNode_t *d = *(FileNode_t **)b;
 
     return strcmp(c->path, d->path);
+}
+
+static int _FMcmpDirbyPath(const void *a, const void *b)
+{
+    char *c = *(char **)a;
+    char *d = *(char **)b;
+
+    return strcmp(c, d);
 }

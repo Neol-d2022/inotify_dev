@@ -34,7 +34,7 @@ static void handle_events(int fd, int *wd)
     size_t i;
     ssize_t len;
     char *ptr;
-    char *path, *tmp;
+    char *path;
 
     /* Loop while events can be read from inotify file descriptor. */
 
@@ -71,9 +71,7 @@ static void handle_events(int fd, int *wd)
                 if (wd[i] == event->wd)
                     break;
 
-            tmp = SCat((char *)rd.dirs->storage[i], "/");
-            path = SCat(tmp, event->name);
-            Mfree(tmp);
+            path = SCatM(3, (char *)rd.dirs->storage[i], "/", event->name);
 
             if (event->mask & IN_OPEN)
             {

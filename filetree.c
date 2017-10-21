@@ -10,8 +10,8 @@
 #include "vector.h"
 #include "strings.h"
 
-static int isDirectory(const char *path);
-static int is_regular_file(const char *path);
+int isDirectory(const char *path);
+int is_regular_file(const char *path);
 static void _loopdir(void *data, void *param);
 
 typedef struct
@@ -73,7 +73,7 @@ void build(const char *path, Vector_t *file, Vector_t *directory)
     return;
 }
 
-static int isDirectory(const char *path)
+int isDirectory(const char *path)
 {
     struct stat statbuf;
     if (stat(path, &statbuf) != 0)
@@ -81,10 +81,11 @@ static int isDirectory(const char *path)
     return S_ISDIR(statbuf.st_mode);
 }
 
-static int is_regular_file(const char *path)
+int is_regular_file(const char *path)
 {
     struct stat path_stat;
-    stat(path, &path_stat);
+    if (stat(path, &path_stat) != 0)
+        return 0;
     return S_ISREG(path_stat.st_mode);
 }
 
