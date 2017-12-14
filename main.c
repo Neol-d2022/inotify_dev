@@ -5,13 +5,13 @@
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/inotify.h>
 #include <unistd.h>
-#include <string.h>
 
 #include "filemanager.h"
-#include "strings.h"
 #include "mm.h"
+#include "strings.h"
 
 static RecoveryDatabase_t rd;
 
@@ -146,9 +146,9 @@ int main(int argc, char *argv[])
     nfds_t nfds;
     struct pollfd fds[2];
 
-    if (argc != 1)
+    if (argc != 3)
     {
-        printf("Usage: %s\n", argv[0]);
+        printf("Usage: %s [recovery source folder] [folder path to br protected]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
     /**/
 
     memset(&rd, 0, sizeof(rd));
-    FMCreateDatabase(&rd);
+    FMCreateDatabase(&rd, argv[1], argv[2]);
     rd.wd = &wd;
     rd.fd = fd;
 

@@ -1,14 +1,14 @@
-#include <stdio.h>
+#include <errno.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <sys/inotify.h>
 
+#include "crc32.h"
 #include "filemanager.h"
 #include "filetree.h"
 #include "mm.h"
-#include "crc32.h"
 #include "strings.h"
 
 typedef struct
@@ -17,25 +17,41 @@ typedef struct
     uint32_t crc32;
 } FileNode_t;
 
-static const char *recoverySource = "recovery/";
 static int _FMcmpFNbyPath(const void *a, const void *b);
 static int _FMcmpDirbyPath(const void *a, const void *b);
-int FMCreateDatabase(RecoveryDatabase_t *rd)
+int FMCreateDatabase(RecoveryDatabase_t *rd, const char *recoverySource, const char *protectedFolderPath)
 {
-    const char *_buildPath = "./protected";
     char *rpath, *syscmd;
     FileNode_t *fn;
     Vector_t *fdb;
     FILE *f;
     Vector_t file, dirs;
-    size_t i;
+    size_t i, j;
 
-    syscmd = SCatM(10, "rm -rf ", _buildPath, " && mkdir ", _buildPath, " && cp -R ", recoverySource, _buildPath, " ", _buildPath, "/../");
+    rd->recoverySource = NULL;
+    rd->protectedFolderPath = NULL;
+    j = strlen(recoverySource);
+    if (j)
+    {
+        if (recoverySource[j - 1] != '/')
+            rd->recoverySource = SCat(recoverySource, "/");
+        else
+            rd->recoverySource = SDup(recoverySource);
+    }
+    j = strlen(protectedFolderPath);
+    if (j)
+    {
+        rd->protectedFolderPath = SDup(protectedFolderPath);
+        if (protectedFolderPath[j - 1] == '/')
+            (rd->protectedFolderPath)[j - 1] = '\0';
+    }
+
+    syscmd = SCatM(10, "rm -rf ", rd->protectedFolderPath, " && mkdir ", rd->protectedFolderPath, " && cp -R ", rd->recoverySource, rd->protectedFolderPath, " ", rd->protectedFolderPath, "/../");
     system(syscmd);
     Mfree(syscmd);
     VInit(&file);
     VInit(&dirs);
-    build(_buildPath, &file, &dirs);
+    build(rd->protectedFolderPath, &file, &dirs);
     fdb = Mmalloc(sizeof(*fdb));
     VInit(fdb);
     for (i = 0; i < file.count; i += 1)
@@ -61,7 +77,7 @@ int FMCreateDatabase(RecoveryDatabase_t *rd)
     }
     VDeInit(&file);
     qsort(fdb->storage, fdb->count, sizeof(*(fdb->storage)), _FMcmpFNbyPath);
-    VAdd(&dirs, SDup(_buildPath));
+    VAdd(&dirs, SDup(rd->protectedFolderPath));
     qsort(dirs.storage, dirs.count, sizeof(*(dirs.storage)), _FMcmpDirbyPath);
     rd->dirs = Mmalloc(sizeof(*(rd->dirs)));
     rd->fdb = fdb;
@@ -99,7 +115,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
                 if (crc32 != (*r)->crc32)
                 {
                     printf("[DEBUG] FMCheckFile, '%s' CRC32 does not match.\n", path);
-                    FMRecoverFile(path);
+                    FMRecoverFile(rd, path);
                 }
                 else
                 {
@@ -117,7 +133,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
             syscmd = SCatM(2, "rm -rf ", path);
             system(syscmd);
             Mfree(syscmd);
-            FMRecoverFile(path);
+            FMRecoverFile(rd, path);
         }
         else
         {
@@ -128,7 +144,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
             else
             {
                 printf("[DEBUG] FMCheckFile, '%s', has been removed.\n", path);
-                FMRecoverFile(path);
+                FMRecoverFile(rd, path);
             }
         }
     }
@@ -143,7 +159,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
             {
                 printf("[DEBUG] FMCheckFile, '%s', should not be a regular file.\n", path);
                 FMRemoveFile(path);
-                syscmd = SCatM(8, "mkdir ", path, " && cp -R ", recoverySource, path, " ", path, "/../");
+                syscmd = SCatM(8, "mkdir ", path, " && cp -R ", rd->recoverySource, path, " ", path, "/../");
                 system(syscmd);
                 Mfree(syscmd);
                 FMRefreshListener(rd);
@@ -156,7 +172,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
                 if (errno == ENOENT)
                 {
                     printf("[DEBUG] FMCheckFile, '%s', directory deleted.\n", path);
-                    syscmd = SCatM(8, "mkdir ", path, " && cp -R ", recoverySource, path, " ", path, "/../");
+                    syscmd = SCatM(8, "mkdir ", path, " && cp -R ", rd->recoverySource, path, " ", path, "/../");
                     system(syscmd);
                     Mfree(syscmd);
                     FMRefreshListener(rd);
@@ -178,11 +194,11 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
     return 0;
 }
 
-int FMRecoverFile(const char *path)
+int FMRecoverFile(RecoveryDatabase_t *rd, const char *path)
 {
     char *syscmd;
 
-    char *rpath = SCat(recoverySource, path);
+    char *rpath = SCat(rd->recoverySource, path);
     printf("[DEBUG] FMRecoverFile, '%s' is corrupted, the original '%s' has been requested.\n", path, rpath);
 
     syscmd = SCatM(4, "cp ", rpath, " ", path);
