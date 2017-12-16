@@ -140,7 +140,7 @@ static void handle_events(int fd, int **wd)
 
 int main(int argc, char *argv[])
 {
-    char buf;
+    //char buf;
     int fd, poll_num;
     int *wd;
     nfds_t nfds;
@@ -196,17 +196,17 @@ int main(int argc, char *argv[])
 
     /* Prepare for polling */
 
-    nfds = 2;
+    nfds = 1;
 
     /* Console input */
 
-    fds[0].fd = STDIN_FILENO;
-    fds[0].events = POLLIN;
+    //fds[0].fd = STDIN_FILENO;
+    //fds[0].events = POLLIN;
 
     /* Inotify input */
 
-    fds[1].fd = fd;
-    fds[1].events = POLLIN;
+    fds[0].fd = fd;
+    fds[0].events = POLLIN;
 
     /* Wait for events and/or terminal input */
 
@@ -225,17 +225,17 @@ int main(int argc, char *argv[])
         if (poll_num > 0)
         {
 
-            if (fds[0].revents & POLLIN)
+            /*if (fds[0].revents & POLLIN)
             {
 
-                /* Console input is available. Empty stdin and quit */
+                // Console input is available. Empty stdin and quit
 
                 while (read(STDIN_FILENO, &buf, 1) > 0 && buf != '\n')
                     continue;
                 break;
-            }
+            }*/
 
-            if (fds[1].revents & POLLIN)
+            if (fds[0].revents & POLLIN)
             {
 
                 /* Inotify events are available */
