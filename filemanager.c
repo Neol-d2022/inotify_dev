@@ -19,6 +19,7 @@ typedef struct
 
 static int _FMcmpFNbyPath(const void *a, const void *b);
 static int _FMcmpDirbyPath(const void *a, const void *b);
+static char *_FMGetLastNode(const char *path);
 int FMCreateDatabase(RecoveryDatabase_t *rd, const char *recoverySource, const char *protectedFolderPath)
 {
     char *rpath, *syscmd;
@@ -46,7 +47,7 @@ int FMCreateDatabase(RecoveryDatabase_t *rd, const char *recoverySource, const c
             (rd->protectedFolderPath)[j - 1] = '\0';
     }
 
-    syscmd = SCatM(10, "rm -rf ", rd->protectedFolderPath, " && mkdir ", rd->protectedFolderPath, " && cp -R ", rd->recoverySource, rd->protectedFolderPath, " ", rd->protectedFolderPath, "/../");
+    syscmd = SCatM(10, "rm -rf ", rd->protectedFolderPath, " && mkdir ", rd->protectedFolderPath, " && cp -R ", rd->recoverySource, _FMGetLastNode(rd->protectedFolderPath), " ", rd->protectedFolderPath, "/../");
     system(syscmd);
     Mfree(syscmd);
     VInit(&file);
@@ -91,7 +92,7 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
     FileNode_t _fn;
     FileNode_t *fn, **r;
     FILE *f;
-    char **rp, *syscmd;
+    char **rp, *syscmd, *rpath;
     uint32_t crc32;
 
     printf("[DEBUG] FMCheckFile, '%s'.\n", path);
@@ -159,9 +160,13 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
             {
                 printf("[DEBUG] FMCheckFile, '%s', should not be a regular file.\n", path);
                 FMRemoveFile(path);
-                syscmd = SCatM(8, "mkdir ", path, " && cp -R ", rd->recoverySource, path, " ", path, "/../");
+                rpath = strstr(path, rd->protectedFolderPath);
+                rpath += strlen(rd->protectedFolderPath) + 1;
+                rpath = SCatM(3, _FMGetLastNode(rd->protectedFolderPath), "/", rpath);
+                syscmd = SCatM(9, "mkdir ", path, " && cp -R ", rd->recoverySource, "/", rpath, " ", path, "/../");
                 system(syscmd);
                 Mfree(syscmd);
+                Mfree(rpath);
                 FMRefreshListener(rd);
             }
             else if (isDirectory(path))
@@ -172,9 +177,13 @@ int FMCheckFile(RecoveryDatabase_t *rd, const char *path)
                 if (errno == ENOENT)
                 {
                     printf("[DEBUG] FMCheckFile, '%s', directory deleted.\n", path);
-                    syscmd = SCatM(8, "mkdir ", path, " && cp -R ", rd->recoverySource, path, " ", path, "/../");
+                    rpath = strstr(path, rd->protectedFolderPath);
+                    rpath += strlen(rd->protectedFolderPath) + 1;
+                    rpath = SCatM(3, _FMGetLastNode(rd->protectedFolderPath), "/", rpath);
+                    syscmd = SCatM(9, "mkdir ", path, " && cp -R ", rd->recoverySource, "/", rpath, " ", path, "/../");
                     system(syscmd);
                     Mfree(syscmd);
+                    Mfree(rpath);
                     FMRefreshListener(rd);
                 }
                 else
@@ -198,7 +207,10 @@ int FMRecoverFile(RecoveryDatabase_t *rd, const char *path)
 {
     char *syscmd;
 
-    char *rpath = SCat(rd->recoverySource, path);
+    char *rpath;
+    rpath = strstr(path, rd->protectedFolderPath);
+    rpath += strlen(rd->protectedFolderPath) + 1;
+    rpath = SCatM(5, rd->recoverySource, "/", _FMGetLastNode(rd->protectedFolderPath), "/", rpath);
     printf("[DEBUG] FMRecoverFile, '%s' is corrupted, the original '%s' has been requested.\n", path, rpath);
 
     syscmd = SCatM(4, "cp ", rpath, " ", path);
@@ -251,4 +263,15 @@ static int _FMcmpDirbyPath(const void *a, const void *b)
     char *d = *(char **)b;
 
     return strcmp(c, d);
+}
+
+static char *_FMGetLastNode(const char *path)
+{
+    char *lastNode = strrchr(path, '/');
+    if (lastNode)
+        lastNode++;
+    else
+        lastNode = (char *)path;
+
+    return lastNode;
 }

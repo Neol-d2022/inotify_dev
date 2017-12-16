@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 
     if (argc != 3)
     {
-        printf("Usage: %s [recovery source folder] [folder path to br protected]\n", argv[0]);
+        printf("Usage: %s [recovery source folder] [folder path to be protected]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
